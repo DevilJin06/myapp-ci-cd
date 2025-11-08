@@ -1,0 +1,14 @@
+apiVersion: tekton.dev/v1beta1
+kind: PipelineRun
+metadata:
+  name: deploy-app-pipelinerun-1
+spec:
+  pipelineRef:
+    name: deploy-app-pipeline
+  workspaces:
+    - name: source
+      persistentVolumeClaim:
+        claimName: pipeline-source-pvc
+  params:
+    - name: IMAGE
+      value: image-registry.openshift-image-registry.svc:5000/${NAMESPACE}/myapp:latest
