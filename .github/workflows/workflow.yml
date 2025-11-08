@@ -2,14 +2,16 @@ name: CI Pipeline
 
 on:
   push:
-    branches: [ 'feature/*' ]
+    branches: [ 'feature/*', 'main' ]
   pull_request:
     branches: [ 'main' ]
+
+env:
+  IMAGE_NAME: ${{ github.repository_owner }}/myapp
 
 jobs:
   build-and-test:
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -22,9 +24,34 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt
-          pip install flake8 nose
-          
-      - name: Lint (flake8)              # <<<-- LINT STEP SNIPPET
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+          pip install flake8 nose coverage
+
+      - name: Lint (flake8)              # <<< LINT STEP (Task 2)
         run: |
           flake8 .
+
+      - name: Run tests (nose)          # <<< TEST STEP (Task 3)
+        run: |
+          nosetests --with-coverage --cover-package=. || ( echo "Tests failed"; exit 1 )
+
+      - name: Build Docker image
+        run: |
+          docker build -t ghcr.io/${{ env.IMAGE_NAME }}:${{ github.sha }} .
+
+      - name: Authenticate to GHCR
+        env:
+          CR_PAT: ${{ secrets.GHCR_TOKEN }}
+        run: |
+          echo $CR_PAT | docker login ghcr.io -u ${{ github.repository_owner }} --password-stdin
+
+      - name: Push image to GHCR
+        run: |
+          docker push ghcr.io/${{ env.IMAGE_NAME }}:${{ github.sha }}
+
+      - name: Upload image info
+        uses: actions/upload-artifact@v4
+        with:
+          name: image-info
+          path: |
+            <(echo "IMAGE=ghcr.io/${{ env.IMAGE_NAME }}:${{ github.sha }}")
