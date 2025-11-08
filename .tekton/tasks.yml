@@ -1,0 +1,45 @@
+---
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  name: cleanup
+spec:
+  params:
+    - name: WORKDIR
+      type: string
+      default: /workspace/source
+  steps:
+    - name: cleanup-step
+      image: registry.access.redhat.com/ubi8/ubi
+      script: |
+        #!/bin/sh
+        set -e
+        echo "Cleaning up workspace at $(params.WORKDIR)"
+        rm -rf $(params.WORKDIR)/.cache || true
+        rm -rf $(params.WORKDIR)/tmp || true
+        rm -rf $(params.WORKDIR)/build || true
+        echo "Cleanup complete"
+---
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  name: nose-test
+spec:
+  workspaces:
+    - name: source
+  steps:
+    - name: install-deps
+      image: python:3.10
+      script: |
+        #!/bin/sh
+        set -e
+        cd /workspace/source
+        python -m pip install --upgrade pip
+        pip install nose coverage
+    - name: run-nose
+      image: python:3.10
+      script: |
+        #!/bin/sh
+        set -e
+        cd /workspace/source
+        nosetests --with-coverage --cover-package=. || ( echo "Tests failed"; exit 1 )
