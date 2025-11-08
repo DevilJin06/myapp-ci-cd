@@ -1,0 +1,42 @@
+apiVersion: tekton.dev/v1beta1
+kind: Pipeline
+metadata:
+  name: deploy-app-pipeline
+spec:
+  workspaces:
+    - name: source
+  tasks:
+    - name: cleanup
+      taskRef:
+        name: cleanup
+      params: []
+      workspaces:
+        - name: source
+          workspace: source
+    - name: run-tests
+      taskRef:
+        name: nose-test
+      runAfter: [cleanup]
+      workspaces:
+        - name: source
+          workspace: source
+    - name: build-and-push
+      runAfter: [run-tests]
+      taskSpec:
+        params:
+          - name: IMAGE
+        steps:
+          - name: build
+            image: registry.redhat.io/ubi8/buildah
+            script: |
+              #!/bin/sh
+              set -e
+              cd /workspace/source
+              buildah bud -t ${IMAGE} .
+          - name: push
+            image: registry.redhat.io/ubi8/buildah
+            script: |
+              #!/bin/sh
+              set -e
+              echo "Pushing ${IMAGE}"
+              buildah push ${IMAGE}
